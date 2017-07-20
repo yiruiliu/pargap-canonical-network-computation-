@@ -1,1 +1,60 @@
 
+min:=function(m,n)
+  if m>n then 
+    return n;
+  else 
+    return m;
+  fi;
+end;
+BroadcastMsg(
+ PrintToString("min := ",
+ min ) );
+ 
+  ParInstallTOPCGlobalFunction( "ParMultMat3", function(m1,m)
+     local i, n, k, kk, kj, result, DoTask, CheckTaskResult, UpdateSharedData;
+    n := Length(m1);
+    k:=QuoInt(n,m);
+    result := [];
+    
+    DoTask := function(i) # i is task input
+    local j, k1, sum,net,nSources,nEdges,G,O,O2,k2;
+    k2:=0;
+    result[i] := [];
+    for k1 in [m*(i-1)+1..min(i*m,n)] do
+      k2:=k2+1;
+    net:=m1[k1];
+    if Size(net[1])=0 or Size(net[2])=0 then
+      result[i][k2]:=[ [ ], [ ]];
+      fi;
+      nSources:=net[1][1][1]-1;
+      nEdges:=Size(net[1]);
+      if nSources>1 then
+          G:=DirectProduct(SymmetricGroup([1..nSources]),SymmetricGroup([(nSources+1)..(nSources+nEdges)]));
+      else
+          G:=Stabilizer(SymmetricGroup([1..(nSources+nEdges)]),1,OnPoints);
+      fi;
+      O:=Orbit(G,net,OnNetwork);
+      O2:=ShallowCopy(O);
+      Sort(O2);
+      result[i][k2]:=ShallowCopy(O2[1]);
+    od;
+    return result[i];
+    end;
+    # CheckTaskResult executes only on the master
+    CheckTaskResult := function(i, row_i) # task output is row_i
+    return UPDATE_ACTION; # Pass on output and input to UpdateSharedData
+    end;
+    # UpdateSharedData executes on the master and on all slaves
+    UpdateSharedData := function(i, row_i) # task output is row_i
+      kj:=0;
+    for kk in [m*(i-1)+1..min(i*m,n)] do
+      kj:=kj+1;
+    result[kk] := row_i[kj];
+    od;
+    end;
+    # We're done defining the task. Let's do it now.
+    MasterSlave( TaskInputIterator([1..k+1]), DoTask, CheckTaskResult,
+    UpdateSharedData );
+    # result is defined on all processes; return local copy of result
+    return result;
+    end );
