@@ -1,16 +1,8 @@
 ###################### functions need to broadcasted to all slaves
-OnNetwork:=function(net,gElem)
-    return [OnSetsDirHyperEdges(net[1],gElem),OnSetsDirHyperEdges(net[2],gElem)];
-end;
-
 OnDirHyperEdges:= function(dirHyperEdge,gElem)
     return [OnPoints(dirHyperEdge[1],gElem),OnSets(dirHyperEdge[2],gElem)];
 end;
 
-BroadcastMsg(PrintToString("OnNetwork:= ",OnNetwork ) );
-  BroadcastMsg(PrintToString("OnSetsDirHyperEdges:= ",OnSetsDirHyperEdges ) );
-  BroadcastMsg(PrintToString("OnDirHyperEdges:= ",OnDirHyperEdges ) );
-####################
 OnSetsDirHyperEdges:= function(PartSet,gElem)
     local i, out;
     out :=[];
@@ -20,6 +12,16 @@ OnSetsDirHyperEdges:= function(PartSet,gElem)
     Sort(out);
     return out;
 end;
+
+OnNetwork:=function(net,gElem)
+    return [OnSetsDirHyperEdges(net[1],gElem),OnSetsDirHyperEdges(net[2],gElem)];
+end;
+
+  BroadcastMsg(PrintToString("OnDirHyperEdges:= ",OnDirHyperEdges ) );
+  BroadcastMsg(PrintToString("OnSetsDirHyperEdges:= ",OnSetsDirHyperEdges ) );
+  BroadcastMsg(PrintToString("OnNetwork:= ",OnNetwork ) );
+####################
+
 
 ParInstallTOPCGlobalFunction( "ParMultMat2", function(m1)
    local i, n, result, DoTask, CheckTaskResult, UpdateSharedData;
