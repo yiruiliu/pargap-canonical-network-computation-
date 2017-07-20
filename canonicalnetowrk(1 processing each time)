@@ -1,0 +1,64 @@
+###################### functions need to broadcasted to all slaves
+OnNetwork:=function(net,gElem)
+    return [OnSetsDirHyperEdges(net[1],gElem),OnSetsDirHyperEdges(net[2],gElem)];
+end;
+
+OnDirHyperEdges:= function(dirHyperEdge,gElem)
+    return [OnPoints(dirHyperEdge[1],gElem),OnSets(dirHyperEdge[2],gElem)];
+end;
+
+BroadcastMsg(PrintToString("OnNetwork:= ",OnNetwork ) );
+  BroadcastMsg(PrintToString("OnSetsDirHyperEdges:= ",OnSetsDirHyperEdges ) );
+  BroadcastMsg(PrintToString("OnDirHyperEdges:= ",OnDirHyperEdges ) );
+####################
+OnSetsDirHyperEdges:= function(PartSet,gElem)
+    local i, out;
+    out :=[];
+    for i in [1..Size(PartSet)] do
+        Append(out,[OnDirHyperEdges(PartSet[i],gElem)]);
+    od;
+    Sort(out);
+    return out;
+end;
+
+ParInstallTOPCGlobalFunction( "ParMultMat2", function(m1)
+   local i, n, result, DoTask, CheckTaskResult, UpdateSharedData;
+  n := Length(m1);
+  result := [];
+
+  DoTask := function(i) # i is task input
+  local j, sum,net,nSources,nEdges,G,O,O2;
+  net:=m1[i];
+  if Size(net[1])=0 or Size(net[2])=0 then
+    result[i]:=[ [ ], [ ]];
+        return result[i];
+    fi;
+
+
+    nSources:=net[1][1][1]-1;
+    nEdges:=Size(net[1]);
+    if nSources>1 then
+        G:=DirectProduct(SymmetricGroup([1..nSources]),SymmetricGroup([(nSources+1)..(nSources+nEdges)]));
+    else
+        G:=Stabilizer(SymmetricGroup([1..(nSources+nEdges)]),1,OnPoints);
+    fi;
+    O:=Orbit(G,net,OnNetwork);
+    O2:=ShallowCopy(O);
+    Sort(O2);
+    result[i]:=ShallowCopy(O2[1]);
+    return result[i];
+  end;
+  # CheckTaskResult executes only on the master
+  CheckTaskResult := function(i, row_i) # task output is row_i
+  return UPDATE_ACTION; # Pass on output and input to UpdateSharedData
+  end;
+  # UpdateSharedData executes on the master and on all slaves
+  UpdateSharedData := function(i, row_i) # task output is row_i
+  result[i] := row_i;
+  end;
+  # We're done defining the task. Let's do it now.
+  MasterSlave( TaskInputIterator([1..n]), DoTask, CheckTaskResult,
+  UpdateSharedData );
+  # result is defined on all processes; return local copy of result
+  return result;
+  end );
