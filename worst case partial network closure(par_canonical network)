@@ -659,7 +659,7 @@ BroadcastMsg(PrintToString("min := ",min ) );
 #      where the largest network invovled in the series of operations has
 #      fewer than kmax sources and nmax edges
 ppartialOperatorClosure:=function(seedList,kkmax, nnmax)
-local prevList, prevAdd, prevAdd1, prevAdd2, curList, li, curAdd, kmax, nmax, curAdd1,z1,z2,z3,z4,z5,z6,z7,z8,z9,z0,z11,curCan,b1,b2,curCan1,curCan2,curCan3,curCan4;
+local prevList, prevAdd, prevAdd1, prevAdd2, curList, li, curAdd, kmax, nmax, curAdd1,z1,z2,z3,z4,z5,z6,z7,z8,z9,z0,z11,curCan,b1,b2,sizecurCan;
     prevList:=[];
     prevAdd:=ShallowCopy(seedList);
     
@@ -736,8 +736,12 @@ local prevList, prevAdd, prevAdd1, prevAdd2, curList, li, curAdd, kmax, nmax, cu
                 curCan2:=[[ [ [  ], [  ] ] ]];
                 curCan:=Difference(curCan,curCan1);
                 curCan:=Difference(curCan,curCan2);
-                
+                sizecurCan:=size(curCan);
+		if sizecurCan>50 then
                 curAdd:=ParMultMat3(curCan,50);
+		else 
+		curAdd:=ParMultMat3(curCan,Quoint(curcan,2)+1);
+		if;
                 curAdd:=Union([curAdd]);
         prevAdd:=curAdd;
         prevList:=curList;
