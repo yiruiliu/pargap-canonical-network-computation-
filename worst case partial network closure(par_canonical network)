@@ -740,7 +740,7 @@ local prevList, prevAdd, prevAdd1, prevAdd2, curList, li, curAdd, kmax, nmax, cu
 		if sizecurCan>50 then
                 curAdd:=ParMultMat3(curCan,50);
 		else 
-		curAdd:=ParMultMat3(curCan,Quoint(curcan,2)+1);
+		curAdd:=ParMultMat3(curCan,Quoint(sizecurCan,2)+1);
 		if;
                 curAdd:=Union([curAdd]);
         prevAdd:=curAdd;
