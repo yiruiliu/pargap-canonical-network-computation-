@@ -718,7 +718,7 @@ local prevList, prevAdd, prevAdd1, prevAdd2, curList, li, curAdd, kmax, nmax, cu
             for li in [BestQuoInt(Size(prevAdd),2)+1..Size(prevAdd)] do
             Append(prevAdd2,[prevAdd[li]]);
             od;
-           z10:=edgeContractionloopPA(prevAdd1,kmax,nmax);
+           z0:=edgeContractionloopPA(prevAdd1,kmax,nmax);
           z11:=edgeContractionloopPA(prevAdd2,kmax,nmax);
                 curCan:=[];
                 Append(curCan,z1);
