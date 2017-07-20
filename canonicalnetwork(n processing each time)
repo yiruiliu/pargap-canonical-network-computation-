@@ -1,14 +1,40 @@
 
-min:=function(m,n)
+
+
+ 
+ ###################### functions need to broadcasted to all slaves
+ 
+ min:=function(m,n)
   if m>n then 
     return n;
   else 
     return m;
   fi;
 end;
-BroadcastMsg(
- PrintToString("min := ",
- min ) );
+
+OnDirHyperEdges:= function(dirHyperEdge,gElem)
+    return [OnPoints(dirHyperEdge[1],gElem),OnSets(dirHyperEdge[2],gElem)];
+end;
+
+OnSetsDirHyperEdges:= function(PartSet,gElem)
+    local i, out;
+    out :=[];
+    for i in [1..Size(PartSet)] do
+        Append(out,[OnDirHyperEdges(PartSet[i],gElem)]);
+    od;
+    Sort(out);
+    return out;
+end;
+
+OnNetwork:=function(net,gElem)
+    return [OnSetsDirHyperEdges(net[1],gElem),OnSetsDirHyperEdges(net[2],gElem)];
+end;
+
+BroadcastMsg(PrintToString("min := ",min ) );
+  BroadcastMsg(PrintToString("OnDirHyperEdges:= ",OnDirHyperEdges ) );
+  BroadcastMsg(PrintToString("OnSetsDirHyperEdges:= ",OnSetsDirHyperEdges ) );
+  BroadcastMsg(PrintToString("OnNetwork:= ",OnNetwork ) );
+####################
  
   ParInstallTOPCGlobalFunction( "ParMultMat3", function(m1,m)
      local i, n, k, kk, kj, result, DoTask, CheckTaskResult, UpdateSharedData;
