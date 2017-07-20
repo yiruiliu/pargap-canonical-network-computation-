@@ -1,1 +1,753 @@
 
+# Do canonicalNetwork and all the Embedding & Combination separately
+Read("/home/aspitrg3-users/yirui/NH/networkEnumeration-05-13-2015/networkMinimality.g");
+Read("/home/aspitrg3-users/yirui/NH/networkEnumeration-05-13-2015/combinationOperators.g");
+Read("/home/aspitrg3-users/yirui/NH/networkEnumeration-05-13-2015/embeddingOperators.g");
+
+
+OnDirHyperEdges:= function(dirHyperEdge,gElem)
+    return [OnPoints(dirHyperEdge[1],gElem),OnSets(dirHyperEdge[2],gElem)];
+end;
+
+OnSetsDirHyperEdges:= function(PartSet,gElem)
+    local i, out;
+    out :=[];
+    for i in [1..Size(PartSet)] do
+        Append(out,[OnDirHyperEdges(PartSet[i],gElem)]);
+    od;
+    Sort(out);
+    return out;
+end;
+
+OnNetwork:=function(net,gElem)
+    return [OnSetsDirHyperEdges(net[1],gElem),OnSetsDirHyperEdges(net[2],gElem)];
+end;
+
+canonicalNetwork:=function(net)
+    local nSources,nEdges,G,O,O2;
+    
+    if Size(net[1])=0 or Size(net[2])=0 then
+        return [ [ ], [ ]];
+    fi;
+    
+    
+    nSources:=net[1][1][1]-1;
+    nEdges:=Size(net[1]);
+    if nSources>1 then
+        G:=DirectProduct(SymmetricGroup([1..nSources]),SymmetricGroup([(nSources+1)..(nSources+nEdges)]));
+    else
+        G:=Stabilizer(SymmetricGroup([1..(nSources+nEdges)]),1,OnPoints);
+    fi;
+    O:=Orbit(G,net,OnNetwork);
+    O2:=ShallowCopy(O);
+    Sort(O2);
+    return O2[1];
+end;
+
+                #all possible source merges
+                #  when done, will have at most nSources1+nSources2-card sources at most nEdges1+nEdges2 edges
+                #     don't do combinations that could potentially violate caps
+                allpossiblesourceMerge:=function(iprevList,jprevAdd, kmax,nmax)
+                local maxCard, card, subss1, subss2, k, l, cands, curCan;
+                maxCard:=Minimum(iprevList[1][1][1]-1,jprevAdd[1][1][1]-1);
+                curCan:=[];
+                for card in [1..maxCard] do
+                    subss1:=Combinations([1..(iprevList[1][1][1]-1)],card);
+                    subss2:=Arrangements([1..(jprevAdd[1][1][1]-1)],card);
+                    
+                    if (iprevList[1][1][1]-1+jprevAdd[1][1][1]-1-card)> kmax then
+                       continue;
+                    fi;
+                    if Size(iprevList[1])+Size(jprevAdd[1])>nmax then
+                       continue;
+                    fi;
+                    
+                    
+                for k in [1..Size(subss1)] do
+                    for l in [1..Size(subss2)] do
+                        cands:=sourceMerge(iprevList,subss1[k],jprevAdd,subss2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+                od;
+                return curCan;
+          end;
+
+          
+           #all possible edge merges
+         allpossibleedgeMerge:=function(iprevList,jprevAdd, kmax,nmax)
+                local k, l, cands, curCan;
+                curCan:=[];
+                 if (iprevList[1][1][1]-1+jprevAdd[1][1][1]-1)<=kmax and (Size(iprevList[1])+Size(jprevAdd[1]))<= nmax then
+                for k in [1..Size(iprevList[1])] do
+                    for l in [1..Size(jprevAdd[1])] do
+                        cands:=edgeMerge(iprevList,k+iprevList[1][1][1]-1,jprevAdd,l+jprevAdd[1][1][1]-1);
+                        Append(curCan,cands);
+                    od;
+                od;
+            fi;
+            return curCan;
+            end; 
+            
+             #all possible node merges
+         allpossiblenodeMerge:=function(iprevList,jprevAdd,nodeList1,nodeList2, kmax,nmax)
+             local k, l, cands, curCan;
+             curCan:=[];
+            if (iprevList[1][1][1]+jprevAdd[1][1][1])<=kmax and (Size(iprevList[1])+Size(jprevAdd[1]))<=nmax then
+                for k in [1..Size(nodeList1)] do
+                    for l in [1..Size(nodeList2)] do
+                        cands:=nodeMerge(iprevList,nodeList1[k],jprevAdd,nodeList2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+                fi;
+                return curCan;
+                end;
+                
+     allpossiblenodeMerge2:=function(iprevAdd,jprevAdd,nodeList1, nodeList2, kmax,nmax)
+            local k, l, cands, curCan;
+            curCan:=[];
+            if (Size(iprevAdd[1])+Size(jprevAdd[1]))<=nmax then
+                for k in [1..Size(nodeList1)] do
+                    for l in [1..Size(nodeList2)] do
+                        cands:=nodeMerge(iprevAdd,nodeList1[k],jprevAdd,nodeList2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+                fi;
+                return curCan;
+                end;
+                
+                #all possible sink merges
+            allpossiblesinkMerge:=function(iprevList,jprevAdd,sinkList1,sinkList2,kmax,nmax)
+        local maxCard, card, subss1, subss2, k, l, cands, curCan;
+        curCan:=[];
+                if (iprevList[1][1][1]+jprevAdd[1][1][1])<=kmax and (Size(iprevList[1])+Size(jprevAdd[1]))<=nmax then
+              maxCard:=Minimum(Size(sinkList1),Size(sinkList2));
+                for card in [1..maxCard] do
+                    subss1:=Combinations(sinkList1,card);
+                    subss2:=Arrangements(sinkList2,card);
+                for k in [1..Size(subss1)] do
+                    for l in [1..Size(subss2)] do
+                        cands:=sinkMerge(iprevList,subss1[k],jprevAdd,subss2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+            od;
+            fi;
+            return curCan;
+            end;
+            
+       allpossiblesinkMerge2:=function(iprevAdd,jprevAdd,sinkList1, sinkList2,kmax,nmax)
+    local maxCard, card, subss1, subss2, k, l, cands, curCan;
+    curCan:=[];
+         if (Size(iprevAdd[1])+Size(jprevAdd[1]))<=nmax then
+                maxCard:=Minimum(Size(sinkList1),Size(sinkList2));
+                for card in [1..maxCard] do
+                    subss1:=Combinations(sinkList1,card);
+                    subss2:=Arrangements(sinkList2,card);
+                for k in [1..Size(subss1)] do
+                    for l in [1..Size(subss2)] do
+                        cands:=sinkMerge(iprevAdd,subss1[k],jprevAdd,subss2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+            od;
+            fi;
+            return curCan;
+            end;
+            
+            #source or edge deletion
+            everysourceoredgeDeletion:=function(iprevAdd)
+            local card, subss1, card2, subss2, k, l, curCan;
+            curCan:=[];
+            for card in [0..(iprevAdd[1][1][1]-1-1)] do
+                subss1:=Combinations([1..(iprevAdd[1][1][1]-1)],card);
+                for card2 in [0..(Size(iprevAdd[1])-1)] do
+                    if card=0 and card2=0 then 
+                        continue;
+                    fi;
+                    
+                    subss2:=Combinations([iprevAdd[1][1][1]..(Size(iprevAdd[1])+iprevAdd[1][1][1]-1)],card2);
+                    for k in [1..Size(subss1)] do
+                        for l in [1..Size(subss2)] do
+                            cands:=sourceOrEdgeDeletion(iprevAdd,Union(subss1[k],subss2[l]));
+                            Append(curCan,cands);
+                        od;
+                    od;
+                od;
+            od;
+            return curCan;
+            end;
+            
+            # every edge contraction
+        everyedgeContraction:=function(iprevAdd)
+          local k,cands, curCan;
+          curCan:=[];
+            for k in [iprevAdd[1][1][1]..Size(iprevAdd[1])] do
+                cands:=edgeContraction(iprevAdd,k);
+                Append(curCan,cands);
+            od;
+            return curCan;
+            end;
+
+ sourceMergeloopPLPA:=function(prevList,prevAdd,kmax,nmax)
+local i, iprevList, j, jprevAdd, maxCard, card, subss1, subss2, k, l, cands, curCan;
+curCan:=[];
+for i in [1..Size(prevList)] do
+            
+            if Size(prevList[i][1])=0 or Size(prevList[i][2])=0 then
+                continue;
+			fi;
+            iprevList:=prevList[i];
+            
+            for j in [1..Size(prevAdd)] do
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+                
+                jprevAdd:=prevAdd[j];
+                
+                maxCard:=Minimum(iprevList[1][1][1]-1,jprevAdd[1][1][1]-1);
+                for card in [1..maxCard] do
+                    subss1:=Combinations([1..(iprevList[1][1][1]-1)],card);
+                    subss2:=Arrangements([1..(jprevAdd[1][1][1]-1)],card);
+                    
+                    if (iprevList[1][1][1]-1+jprevAdd[1][1][1]-1-card)> kmax then
+                       continue;
+                    fi;
+                    if Size(iprevList[1])+Size(jprevAdd[1])>nmax then
+                       continue;
+                    fi;
+                for k in [1..Size(subss1)] do
+                    for l in [1..Size(subss2)] do
+                        cands:=sourceMerge(iprevList,subss1[k],jprevAdd,subss2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+                od;
+                od;
+     od;
+     return curCan;
+     end;   
+     
+edgeMergeloopPLPA:=function(prevList,prevAdd,kmax,nmax)
+local i, iprevList, j, jprevAdd, k, l, cands, curCan;
+curCan:=[];
+for i in [1..Size(prevList)] do
+            
+            if Size(prevList[i][1])=0 or Size(prevList[i][2])=0 then
+                continue;
+            fi;
+            
+            iprevList:=prevList[i];
+           
+            for j in [1..Size(prevAdd)] do
+                
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+            jprevAdd:=prevAdd[j];
+            
+                if (iprevList[1][1][1]-1+jprevAdd[1][1][1]-1)<=kmax and (Size(iprevList[1])+Size(jprevAdd[1]))<= nmax then
+                for k in [1..Size(iprevList[1])] do
+                    for l in [1..Size(jprevAdd[1])] do
+                        cands:=edgeMerge(iprevList,k+iprevList[1][1][1]-1,jprevAdd,l+jprevAdd[1][1][1]-1);
+                        Append(curCan,cands);
+                    od;
+                od;
+            fi;
+        od;
+     od;
+     return curCan;
+     end;
+     
+     nodeMergeloopPLPA:=function(prevList,prevAdd,kmax,nmax)
+     local i, iprevList, nodeList1, j, nodeList2, jprevAdd,ll, k, l, cands, curCan;
+     curCan:=[];
+     for i in [1..Size(prevList)] do
+            
+            if Size(prevList[i][1])=0 or Size(prevList[i][2])=0 then
+                continue;
+            fi;
+            
+            iprevList:=prevList[i];
+            nodeList1:=[];
+            for ll in [1..Size(iprevList[1])] do
+                nodeList1:=Union(nodeList1,[iprevList[1][ll][2]]);
+            od;
+            Sort(nodeList1);
+            for j in [1..Size(prevAdd)] do
+                
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+                
+                
+                nodeList2:=[];
+                jprevAdd:=prevAdd[j];
+                for ll in [1..Size(jprevAdd[1])] do 
+                    nodeList2:=Union(nodeList2,[jprevAdd[1][ll][2]]);
+                od;
+                Sort(nodeList2);
+                
+                if (iprevList[1][1][1]+jprevAdd[1][1][1])<=kmax and (Size(iprevList[1])+Size(jprevAdd[1]))<=nmax then
+                for k in [1..Size(nodeList1)] do
+                    for l in [1..Size(nodeList2)] do
+                        cands:=nodeMerge(iprevList,nodeList1[k],jprevAdd,nodeList2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+                fi;
+                od;
+          od;
+          return curCan;
+        end;
+        
+        sinkMergeloopPLPA:=function(prevList,prevAdd,kmax,nmax)
+        local i, iprevList, sinkList1, j, sinkList2, jprevAdd,ll, maxCard, card, subss1, subss2, k, l, cands, curCan;
+        curCan:=[];
+        for i in [1..Size(prevList)] do
+            
+            if Size(prevList[i][1])=0 or Size(prevList[i][2])=0 then
+                continue;
+            fi;
+            
+            iprevList:=prevList[i];
+            sinkList1:=[];
+            for ll in [1..Size(iprevList[2])] do
+                sinkList1:=Union(sinkList1,[iprevList[2][ll][2]]);
+            od;
+            Sort(sinkList1);
+            for j in [1..Size(prevAdd)] do
+                
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+                sinkList2:=[];
+                jprevAdd:=prevAdd[j];
+                for ll in [1..Size(jprevAdd[2])] do
+                    sinkList2:=Union(sinkList2,[jprevAdd[2][ll][2]]);
+                od;
+                Sort(sinkList2);
+                
+              if (iprevList[1][1][1]+jprevAdd[1][1][1])<=kmax and (Size(iprevList[1])+Size(jprevAdd[1]))<=nmax then
+              maxCard:=Minimum(Size(sinkList1),Size(sinkList2));
+                for card in [1..maxCard] do
+                    subss1:=Combinations(sinkList1,card);
+                    subss2:=Arrangements(sinkList2,card);
+                for k in [1..Size(subss1)] do
+                    for l in [1..Size(subss2)] do
+                        cands:=sinkMerge(iprevList,subss1[k],jprevAdd,subss2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+            od;
+            fi;
+                od;
+                od;
+                return curCan;
+            end; 
+            
+            
+    sourceMergeloopPAPA:=function(prevAdd,kmax,nmax)
+        local i, iprevAdd, j, jprevAdd, maxCard, card, subss1, subss2, k, l, cands, curCan;
+        curCan:=[];
+        for i in [1..Size(prevAdd)] do
+            if Size(prevAdd[i][1])=0 or Size(prevAdd[i][2])=0 then
+                continue;
+            fi;
+            iprevAdd:=prevAdd[i];
+            for j in [i..Size(prevAdd)] do
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+                jprevAdd:=prevAdd[j];
+                
+                 maxCard:=Minimum(iprevAdd[1][1][1]-1,jprevAdd[1][1][1]-1);
+                for card in [1..maxCard] do
+                    subss1:=Combinations([1..(iprevAdd[1][1][1]-1)],card);
+                    subss2:=Arrangements([1..(jprevAdd[1][1][1]-1)],card);
+                    
+                    if (iprevAdd[1][1][1]-1+jprevAdd[1][1][1]-1-card)> kmax then
+                       continue;
+                    fi;
+                    if Size(iprevAdd[1])+Size(jprevAdd[1])>nmax then
+                       continue;
+                    fi;
+                    
+                    
+                for k in [1..Size(subss1)] do
+                    for l in [1..Size(subss2)] do
+                        cands:=sourceMerge(iprevAdd,subss1[k],jprevAdd,subss2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+                od;
+                od;
+                od;
+                return curCan;
+        end;
+        
+        edgeMergeloopPAPA:=function(prevAdd,kmax,nmax)
+        local i, iprevAdd, j, jprevAdd, k, l, cands, curCan;
+        curCan:=[];
+        for i in [1..Size(prevAdd)] do
+            if Size(prevAdd[i][1])=0 or Size(prevAdd[i][2])=0 then
+                continue;
+            fi;
+            iprevAdd:=prevAdd[i];
+            for j in [i..Size(prevAdd)] do
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+                jprevAdd:=prevAdd[j];
+                if (iprevAdd[1][1][1]-1+jprevAdd[1][1][1]-1)<kmax+1 then
+                
+                if (iprevAdd[1][1][1]-1+jprevAdd[1][1][1]-1)<=kmax and (Size(iprevAdd[1])+Size(jprevAdd[1]))<= nmax then
+                for k in [1..Size(iprevAdd[1])] do
+                    for l in [1..Size(jprevAdd[1])] do
+                        cands:=edgeMerge(iprevAdd,k+iprevAdd[1][1][1]-1,jprevAdd,l+jprevAdd[1][1][1]-1);
+                        Append(curCan,cands);
+                    od;
+                od;
+            fi;
+                fi;
+                od;
+                od;
+                return curCan;
+        end;
+        
+        nodeMergeloopPAPA:=function(prevAdd,kmax,nmax)
+        local i, iprevAdd, ll, nodeList1, nodeList2, j, jprevAdd, k, l, cands, curCan;
+        curCan:=[];
+        for i in [1..Size(prevAdd)] do
+            if Size(prevAdd[i][1])=0 or Size(prevAdd[i][2])=0 then
+                continue;
+            fi;
+            nodeList1:=[];
+            iprevAdd:=prevAdd[i];
+            for ll in [1..Size(iprevAdd[1])] do
+                nodeList1:=Union(nodeList1,[iprevAdd[1][ll][2]]);
+            od;
+            Sort(nodeList1);
+            for j in [i..Size(prevAdd)] do
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+                nodeList2:=[];
+                jprevAdd:=prevAdd[j];
+                for ll in [1..Size(jprevAdd[1])] do 
+                    nodeList2:=Union(nodeList2,[jprevAdd[1][ll][2]]);
+                od;
+                Sort(nodeList2);
+                if (iprevAdd[1][1][1]-1+jprevAdd[1][1][1]-1)<kmax+1 then
+                
+                if (Size(iprevAdd[1])+Size(jprevAdd[1]))<=nmax then
+                for k in [1..Size(nodeList1)] do
+                    for l in [1..Size(nodeList2)] do
+                        cands:=nodeMerge(iprevAdd,nodeList1[k],jprevAdd,nodeList2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+                fi;
+                fi;
+                od;
+                od;
+                return curCan;
+        end;
+        
+        sinkMergeloopPAPA:=function(prevAdd,kmax,nmax)
+        local i, iprevAdd, sinkList1, ll, sinkList2, j, jprevAdd, maxCard, card, subss1, subss2, k, l, cands, curCan;
+        curCan:=[];
+        for i in [1..Size(prevAdd)] do
+            if Size(prevAdd[i][1])=0 or Size(prevAdd[i][2])=0 then
+                continue;
+            fi;
+            iprevAdd:=prevAdd[i];
+            sinkList1:=[];
+            for ll in [1..Size(iprevAdd[2])] do
+                sinkList1:=Union(sinkList1,[iprevAdd[2][ll][2]]);
+            od;
+            Sort(sinkList1);
+            for j in [i..Size(prevAdd)] do
+                if Size(prevAdd[j][1])=0 or Size(prevAdd[j][2])=0 then
+                    continue;
+                fi;
+                jprevAdd:=prevAdd[j];
+                sinkList2:=[];
+                for ll in [1..Size(jprevAdd[2])] do
+                    sinkList2:=Union(sinkList2,[jprevAdd[2][ll][2]]);
+                od;
+                Sort(sinkList2);
+                if (iprevAdd[1][1][1]-1+jprevAdd[1][1][1]-1)<kmax+1 then
+                
+                if (Size(iprevAdd[1])+Size(jprevAdd[1]))<=nmax then
+                maxCard:=Minimum(Size(sinkList1),Size(sinkList2));
+                for card in [1..maxCard] do
+                    subss1:=Combinations(sinkList1,card);
+                    subss2:=Arrangements(sinkList2,card);
+                for k in [1..Size(subss1)] do
+                    for l in [1..Size(subss2)] do
+                        cands:=sinkMerge(iprevAdd,subss1[k],jprevAdd,subss2[l]);
+                        Append(curCan,cands);
+                    od;
+                od;
+            od;
+            fi;
+                fi;
+                od;
+                od;
+                return curCan;
+        end;
+        
+        sourceoredgeDeletionloopPA:=function(prevAdd,kmax,nmax)
+        local i, iprevAdd, card, subss1, card2, subss2, k, l,curCan;
+        curCan:=[];
+         for i in [1..Size(prevAdd)] do
+            if Size(prevAdd[i][1])=0 or Size(prevAdd[i][2])=0 then
+                continue;
+            fi;
+            iprevAdd:=prevAdd[i];
+            
+            for card in [0..(iprevAdd[1][1][1]-1-1)] do
+                subss1:=Combinations([1..(iprevAdd[1][1][1]-1)],card);
+                for card2 in [0..(Size(iprevAdd[1])-1)] do
+                    if card=0 and card2=0 then 
+                        continue;
+                    fi;
+                    
+                    subss2:=Combinations([iprevAdd[1][1][1]..(Size(iprevAdd[1])+iprevAdd[1][1][1]-1)],card2);
+                    for k in [1..Size(subss1)] do
+                        for l in [1..Size(subss2)] do
+                            cands:=sourceOrEdgeDeletion(iprevAdd,Union(subss1[k],subss2[l]));
+                            Append(curCan,cands);
+                        od;
+                    od;
+                od;
+            od;
+          od;
+          return curCan;
+        end;
+        
+        edgeContractionloopPA:=function(prevAdd,kmax,nmax)
+        local i, iprevAdd, k,cands, curCan;
+        curCan:=[];
+         for i in [1..Size(prevAdd)] do
+            if Size(prevAdd[i][1])=0 or Size(prevAdd[i][2])=0 then
+                continue;
+            fi;
+            iprevAdd:=prevAdd[i];
+            
+            for k in [iprevAdd[1][1][1]..Size(iprevAdd[1])] do
+                cands:=edgeContraction(iprevAdd,k);
+                Append(curCan,cands);
+            od;
+            od;
+            return curCan;
+        end;
+        
+        canonicalNetworkLoop:=function(cands, curList, kmax,nmax)
+                local  m, testNet, curAdd;
+                         curAdd:=[];
+                        for m in [1..Size(cands)] do
+                            if Size(cands[m][1])>0 then
+                            if (cands[m][1][1][1]-1)<=kmax and Size(cands[m][1])<=nmax then
+                                testNet:=canonicalNetwork(cands[m]);
+                                if testNet in curList then
+                                    continue;
+                                else
+                                    if testNet in curAdd then
+                                        continue;
+                                    else
+                                        #add to the list
+                                        Append(curAdd,[testNet]);
+                                    fi;
+                                fi;
+                            fi; fi;
+                        od;
+                return curAdd;
+          end;
+          
+          
+
+         ###################### functions need to broadcasted to all slaves
+ min:=function(m,n)
+  if m>n then 
+    return n;
+  else 
+    return m;
+  fi;
+end;
+
+OnDirHyperEdges:= function(dirHyperEdge,gElem)
+    return [OnPoints(dirHyperEdge[1],gElem),OnSets(dirHyperEdge[2],gElem)];
+end;
+
+OnSetsDirHyperEdges:= function(PartSet,gElem)
+    local i, out;
+    out :=[];
+    for i in [1..Size(PartSet)] do
+        Append(out,[OnDirHyperEdges(PartSet[i],gElem)]);
+    od;
+    Sort(out);
+    return out;
+end;
+
+OnNetwork:=function(net,gElem)
+    return [OnSetsDirHyperEdges(net[1],gElem),OnSetsDirHyperEdges(net[2],gElem)];
+end;
+
+BroadcastMsg(PrintToString("min := ",min ) );
+  BroadcastMsg(PrintToString("OnDirHyperEdges:= ",OnDirHyperEdges ) );
+  BroadcastMsg(PrintToString("OnSetsDirHyperEdges:= ",OnSetsDirHyperEdges ) );
+  BroadcastMsg(PrintToString("OnNetwork:= ",OnNetwork ) );
+####################
+ 
+ ##########par_canonical network (n processing each time)
+  ParInstallTOPCGlobalFunction( "ParMultMat3", function(m1,m)
+     local i, n, k, kk, kj, result, DoTask, CheckTaskResult, UpdateSharedData;
+    n := Length(m1);
+    k:=QuoInt(n,m);
+    result := [];
+    
+    DoTask := function(i) # i is task input
+    local j, k1, sum,net,nSources,nEdges,G,O,O2,k2;
+    k2:=0;
+    result[i] := [];
+    for k1 in [m*(i-1)+1..min(i*m,n)] do
+      k2:=k2+1;
+    net:=m1[k1];
+    if Size(net[1])=0 or Size(net[2])=0 then
+      result[i][k2]:=[ [ ], [ ]];
+      fi;
+      nSources:=net[1][1][1]-1;
+      nEdges:=Size(net[1]);
+      if nSources>1 then
+          G:=DirectProduct(SymmetricGroup([1..nSources]),SymmetricGroup([(nSources+1)..(nSources+nEdges)]));
+      else
+          G:=Stabilizer(SymmetricGroup([1..(nSources+nEdges)]),1,OnPoints);
+      fi;
+      O:=Orbit(G,net,OnNetwork);
+      O2:=ShallowCopy(O);
+      Sort(O2);
+      result[i][k2]:=ShallowCopy(O2[1]);
+    od;
+    return result[i];
+    end;
+    # CheckTaskResult executes only on the master
+    CheckTaskResult := function(i, row_i) # task output is row_i
+    return UPDATE_ACTION; # Pass on output and input to UpdateSharedData
+    end;
+    # UpdateSharedData executes on the master and on all slaves
+    UpdateSharedData := function(i, row_i) # task output is row_i
+      kj:=0;
+    for kk in [m*(i-1)+1..min(i*m,n)] do
+      kj:=kj+1;
+    result[kk] := row_i[kj];
+    od;
+    end;
+    # We're done defining the task. Let's do it now.
+    MasterSlave( TaskInputIterator([1..k+1]), DoTask, CheckTaskResult,
+    UpdateSharedData );
+    # result is defined on all processes; return local copy of result
+    return result;
+    end );
+
+# determine a list of the canonical form of all non-isomorphic networks
+#      which can be generated via combination and embedding operator combinations
+#      where the largest network invovled in the series of operations has
+#      fewer than kmax sources and nmax edges
+ppartialOperatorClosure:=function(seedList,kkmax, nnmax)
+local prevList, prevAdd, prevAdd1, prevAdd2, curList, li, curAdd, kmax, nmax, curAdd1,z1,z2,z3,z4,z5,z6,z7,z8,z9,z0,z11,curCan,b1,b2,curCan1,curCan2,curCan3,curCan4;
+    prevList:=[];
+    prevAdd:=ShallowCopy(seedList);
+    
+    curList:=ShallowCopy(seedList);
+    curAdd:=[];
+    kmax:=kkmax;
+    nmax:=nnmax;
+    
+    while Size(prevAdd)> 0 do
+        # do all combinations of things in the prevList and the things just
+        #    added at the last round (prevAdd).  If they are not yet in the curList,
+        #    not in curAdd, and are small enough (meeting nmax and kmax cap), add them to 
+        #    curAdd
+        
+                # all possible source merge
+              z1:=sourceMergeloopPLPA(prevList,prevAdd,kmax,nmax);
+              
+              # all possible edge merge
+              z2:=edgeMergeloopPLPA(prevList,prevAdd,kmax,nmax);
+              
+              # all possible node merge
+                z3:=nodeMergeloopPLPA(prevList,prevAdd,kmax,nmax);
+    
+               # all possible sink merge
+              z4:=sinkMergeloopPLPA(prevList,prevAdd,kmax,nmax);
+              
+        # do all combinations of things in prevAdd with one another
+        # find all of the minors of things in prevAdd and add to curAdd anything
+        #     not yet in curList, not yet in curAdd, and small enough (nmax,kmax)  
+        
+         #all possible source merges
+        z5:=sourceMergeloopPAPA(prevAdd,kmax,nmax);    
+         
+        #all possible edge merges
+        z6:=edgeMergeloopPAPA(prevAdd,kmax,nmax);
+        
+            #all possible node merges
+        z7:=nodeMergeloopPAPA(prevAdd,kmax,nmax);
+        
+            #all possible sink merges
+        z8:=sinkMergeloopPAPA(prevAdd,kmax,nmax);
+               
+            # do all embedding operators on the things in prevAdd
+           
+            #every source or edge deletion
+           z9:=sourceoredgeDeletionloopPA(prevAdd,kmax,nmax);
+
+            #every edge contraction
+            
+              prevAdd1:=[];
+            for li in [1..BestQuoInt(Size(prevAdd),2)] do
+            Append(prevAdd1,[prevAdd[li]]);
+            od;
+            
+            prevAdd2:=[];
+            for li in [BestQuoInt(Size(prevAdd),2)+1..Size(prevAdd)] do
+            Append(prevAdd2,[prevAdd[li]]);
+            od;
+           z10:=edgeContractionloopPA(prevAdd1,kmax,nmax);
+          z11:=edgeContractionloopPA(prevAdd2,kmax,nmax);
+                curCan:=[];
+                Append(curCan,z1);
+                Append(curCan,z2);
+                Append(curCan,z3);
+                Append(curCan,z4);
+                Append(curCan,z5);
+                Append(curCan,z6);
+                Append(curCan,z7);
+                Append(curCan,z8);
+                Append(curCan,z9);
+                Append(curCan,z0);
+                Append(curCan,z11);
+                curCan1:=[ [ [  ], [  ] ] ];
+                curCan2:=[[ [ [  ], [  ] ] ]];
+                curCan:=Difference(curCan,curCan1);
+                curCan:=Difference(curCan,curCan2);
+                
+                curAdd:=ParMultMat3(curCan,50);
+                curAdd:=Union([curAdd]);
+        prevAdd:=curAdd;
+        prevList:=curList;
+        curList:=Union(curList,curAdd);
+        
+        Print("Added ",Size(curAdd)," new networks to reach ",Size(curList),"\n");
+  #      PrintTo(Concatenation("debugList-",String(seedList[1][1][1][1]-1),"-",String(Size(seedList[1][1])),"-to-",String(kmax),"-",String(nmax),".txt"),curList);
+        
+        
+        curAdd:=[];
+    od;
+    return curList;
+end;
