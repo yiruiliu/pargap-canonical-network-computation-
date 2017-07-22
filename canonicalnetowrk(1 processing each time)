@@ -50,16 +50,12 @@ ParInstallTOPCGlobalFunction( "ParMultMat2", function(m1)
     result[i]:=ShallowCopy(O2[1]);
     return result[i];
   end;
-  # CheckTaskResult executes only on the master
-  CheckTaskResult := function(i, row_i) # task output is row_i
-  return UPDATE_ACTION; # Pass on output and input to UpdateSharedData
-  end;
   # UpdateSharedData executes on the master and on all slaves
   UpdateSharedData := function(i, row_i) # task output is row_i
   result[i] := row_i;
   end;
   # We're done defining the task. Let's do it now.
-  MasterSlave( TaskInputIterator([1..n]), DoTask, CheckTaskResult,
+  MasterSlave( TaskInputIterator([1..n]), DoTask, DefaultCheckTaskResult,
   UpdateSharedData );
   # result is defined on all processes; return local copy of result
   return result;
