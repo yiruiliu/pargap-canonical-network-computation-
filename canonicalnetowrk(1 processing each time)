@@ -29,7 +29,7 @@ ParInstallTOPCGlobalFunction( "ParMultMat2", function(m1)
   result := [];
 
   DoTask := function(i) # i is task input
-  local j, sum,net,nSources,nEdges,G,O,O2;
+  local net,nSources,nEdges,G,O,O2;
   net:=m1[i];
   if Size(net[1])=0 or Size(net[2])=0 then
     result[i]:=[ [ ], [ ]];
